@@ -28,7 +28,7 @@
 ### 1. 下载模型权重
 
 ```bash
-# 下载预训练的GGUF模型文件 (约2.5GB)
+# 下载预训练的GGUF模型文件 (约8.05GB)
 wget https://huggingface.co/golangboy/TransLens/resolve/main/translate_model_gguf_q5km.gguf
 ```
 
