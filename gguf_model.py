@@ -8,9 +8,9 @@ import time
 import argparse
 import sqlite3
 from configparser import ConfigParser, NoSectionError, NoOptionError
-
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+from dotenv import load_dotenv
 
 # ==============================================================================
 # 1. 统一且可扩展的 API 提供者
@@ -20,7 +20,7 @@ from flask_cors import CORS
 class TranslationProvider:
     """
     一个完全由配置驱动的通用翻译 API 提供者。
-    支持自定义请求头和网络代理。
+    支持自定义请求头、网络代理和环境变量占位符。
     """
 
     def __init__(self, provider_name, config: ConfigParser):
@@ -32,19 +32,33 @@ class TranslationProvider:
         provider_config = config[provider_name]
         default_config = config["DEFAULT"]
 
+        # 环境变量解析辅助函数
+        def get_config_value(section, key, fallback=""):
+            """从配置中获取值，并解析环境变量。"""
+            # ConfigParser 默认支持环境变量插值，但我们需要更灵活的处理
+            # 使用 os.path.expandvars 来解析 ${VAR} 或 $VAR 格式
+            raw_value = section.get(key, fallback)
+            return os.path.expandvars(raw_value)
+
         self.provider_name = provider_name
-        self.api_url = provider_config.get("api_url")
-        self.model = provider_config.get("model", fallback="default")
-        self.api_key = provider_config.get("api_key", fallback="")
+        self.api_url = get_config_value(provider_config, "api_url")
+        self.model = get_config_value(provider_config, "model", fallback="default")
+        self.api_key = get_config_value(provider_config, "api_key", fallback="")
         self.use_system_role = provider_config.getboolean("use_system_role", True)
 
         # 优先使用 provider_config 的 system_prompt，否则回退到 default_config
-        self.system_prompt = provider_config.get(
-            "system_prompt", default_config.get("system_prompt")
+        self.system_prompt = get_config_value(
+            provider_config,
+            "system_prompt",
+            fallback=get_config_value(default_config, "system_prompt"),
         )
 
         # 优先使用 provider_config 的 proxy，否则回退到 default_config
-        self.proxy = provider_config.get("proxy", default_config.get("proxy", None))
+        self.proxy = get_config_value(
+            provider_config,
+            "proxy",
+            fallback=get_config_value(default_config, "proxy", None),
+        )
 
         # 解析所有以 'header_' 开头的自定义请求头
         self.custom_headers = {}
@@ -52,7 +66,8 @@ class TranslationProvider:
             if key.startswith("header_"):
                 # 将 'header_http-referer' 转换为 'HTTP-Referer'
                 header_name = key[len("header_") :].replace("_", "-").title()
-                self.custom_headers[header_name] = value
+                # 同样解析环境变量
+                self.custom_headers[header_name] = os.path.expandvars(value)
 
         print(
             f"[{self.provider_name}] 提供者已初始化。模型: {self.model}, 使用代理: {self.proxy or '无'}"
@@ -118,8 +133,6 @@ class TranslationProvider:
 # ==============================================================================
 # 2. 缓存系统 (未改变)
 # ==============================================================================
-
-
 class TranslationCache:
     """
     翻译缓存类，使用 SQLite 数据库进行持久化存储，
@@ -252,7 +265,6 @@ class TranslationCache:
             self.conn.close()
             print("数据库连接已关闭。")
 
-
 # ==============================================================================
 # 3. Flask 应用
 # ==============================================================================
@@ -314,8 +326,16 @@ def translate_word():
     except Exception as e:
         return jsonify({"error": f"处理翻译请求时发生错误: {e}"}), 502
 
+# ==============================================================================
+# 4. 主程序入口
+# ==============================================================================
 
 if __name__ == "__main__":
+    # 2. 在程序开始时加载 .env 文件
+    # 这会把 .env 文件中的键值对加载到环境变量中
+    load_dotenv()
+    print("已加载 .env 文件中的环境变量。")
+
     parser = argparse.ArgumentParser(description="启动 TransLens 后端翻译服务。")
     parser.add_argument(
         "--provider",
@@ -324,12 +344,18 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
+    # 3. 修改 ConfigParser，使其能够处理环境变量
+    # 我们将在 TranslationProvider 内部使用 os.path.expandvars，
+    # 所以这里的 ConfigParser 不需要特殊设置。
     config = ConfigParser()
     config.read("config.ini", encoding="utf-8")
 
-    provider_name = args.provider or config.get(
-        "DEFAULT", "provider", fallback="local_llama"
+    # 命令行参数 > config.ini [DEFAULT] provider > fallback
+    default_provider_from_config = os.path.expandvars(
+        config.get("DEFAULT", "provider", fallback="local_llama")
     )
+    provider_name = args.provider or default_provider_from_config
+
     print("-" * 50)
     print(f"准备启动服务，使用 API 提供者: '{provider_name}'")
 
