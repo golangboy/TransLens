@@ -6,6 +6,7 @@ import os
 import hashlib
 import time
 import argparse
+import sqlite3
 from configparser import ConfigParser, NoSectionError, NoOptionError
 
 from flask import Flask, request, jsonify
@@ -120,97 +121,111 @@ class TranslationProvider:
 
 
 class TranslationCache:
-    """翻译缓存类，用于管理翻译结果的缓存和持久化，以及词语选择频率跟踪"""
+    """
+    翻译缓存类，使用 SQLite 数据库进行持久化存储，
+    并跟踪词语选择频率。
+    """
 
-    def __init__(
-        self, cache_file="translation_cache.json", frequency_file="word_frequency.json"
-    ):
-        self.cache_file = cache_file
-        self.frequency_file = frequency_file
-        self.cache = {}
-        self.word_frequency = {}  # 记录每个词语被选择的次数
-        self.load_cache()
-        self.load_frequency()
+    def __init__(self, db_file="translens_data.db"):
+        self.db_file = db_file
+        self.conn = None
+        try:
+            self.conn = sqlite3.connect(self.db_file, check_same_thread=False)
+            print(f"数据库连接成功: {self.db_file}")
+            self._init_db()
+        except sqlite3.Error as e:
+            print(f"数据库错误: {e}")
+            exit(1)  # 如果数据库无法连接，则终止程序
+
+    def _init_db(self):
+        """初始化数据库，创建所需的表"""
+        cursor = self.conn.cursor()
+        # 创建翻译缓存表
+        # key 是 sentence 和 target_word 的 MD5 哈希值，确保唯一性
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS translation_cache (
+            key TEXT PRIMARY KEY,
+            sentence TEXT NOT NULL,
+            target_word TEXT NOT NULL,
+            translation TEXT NOT NULL,
+            timestamp INTEGER NOT NULL
+        )
+        """)
+        # 创建词频表
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS word_frequency (
+            word TEXT PRIMARY KEY,
+            frequency INTEGER NOT NULL DEFAULT 0
+        )
+        """)
+        self.conn.commit()
+        print("数据库表初始化完成。")
 
     def _generate_key(self, sentence, target_word):
         """根据句子和目标词生成缓存键"""
         key_string = f"{sentence}|{target_word}"
         return hashlib.md5(key_string.encode("utf-8")).hexdigest()
 
-    def load_cache(self):
-        """从文件加载缓存"""
-        try:
-            if os.path.exists(self.cache_file):
-                with open(self.cache_file, "r", encoding="utf-8") as f:
-                    self.cache = json.load(f)
-                print(f"缓存已从 {self.cache_file} 加载，共 {len(self.cache)} 条记录")
-            else:
-                print(f"缓存文件 {self.cache_file} 不存在，将创建新的缓存")
-        except Exception as e:
-            print(f"加载缓存失败: {e}")
-            self.cache = {}
-
-    def load_frequency(self):
-        """从文件加载词语选择频率"""
-        try:
-            if os.path.exists(self.frequency_file):
-                with open(self.frequency_file, "r", encoding="utf-8") as f:
-                    self.word_frequency = json.load(f)
-                print(
-                    f"词语频率已从 {self.frequency_file} 加载，共 {len(self.word_frequency)} 个词语"
-                )
-            else:
-                print(f"频率文件 {self.frequency_file} 不存在，将创建新的频率记录")
-        except Exception as e:
-            print(f"加载频率失败: {e}")
-            self.word_frequency = {}
-
-    def save_cache(self):
-        """将缓存保存到文件"""
-        try:
-            with open(self.cache_file, "w", encoding="utf-8") as f:
-                json.dump(self.cache, f, ensure_ascii=False, indent=2)
-            print(f"缓存已保存到 {self.cache_file}")
-        except Exception as e:
-            print(f"保存缓存失败: {e}")
-
-    def save_frequency(self):
-        """将词语选择频率保存到文件"""
-        try:
-            with open(self.frequency_file, "w", encoding="utf-8") as f:
-                json.dump(self.word_frequency, f, ensure_ascii=False, indent=2)
-            print(f"词语频率已保存到 {self.frequency_file}")
-        except Exception as e:
-            print(f"保存频率失败: {e}")
+    # 不再需要 load_cache 和 save_cache，数据库会自动处理
+    # 不再需要 load_frequency 和 save_frequency
 
     def get(self, sentence, target_word):
-        """获取缓存的翻译结果"""
+        """从数据库获取缓存的翻译结果"""
         key = self._generate_key(sentence, target_word)
-        return self.cache.get(key)
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "SELECT translation, sentence, target_word, timestamp FROM translation_cache WHERE key = ?",
+            (key,),
+        )
+        row = cursor.fetchone()
+        if row:
+            return {
+                "translation": row[0],
+                "sentence": row[1],
+                "target_word": row[2],
+                "timestamp": row[3],
+            }
+        return None
 
     def set(self, sentence, target_word, translation):
-        """设置缓存的翻译结果"""
+        """向数据库设置缓存的翻译结果"""
         key = self._generate_key(sentence, target_word)
-        self.cache[key] = {
-            "sentence": sentence,
-            "target_word": target_word,
-            "translation": translation,
-            "timestamp": int(time.time()),
-        }
-        self.save_cache()
+        timestamp = int(time.time())
+        cursor = self.conn.cursor()
+        # 使用 INSERT OR REPLACE 实现存在即更新，不存在即插入
+        cursor.execute(
+            """
+        INSERT OR REPLACE INTO translation_cache (key, sentence, target_word, translation, timestamp)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+            (key, sentence, target_word, translation, timestamp),
+        )
+        self.conn.commit()
 
     def increment_word_frequency(self, word):
         """增加词语被选择的次数"""
-        if word in self.word_frequency:
-            self.word_frequency[word] += 1
-        else:
-            self.word_frequency[word] = 1
-        self.save_frequency()
-        print(f"词语 '{word}' 选择次数更新为: {self.word_frequency[word]}")
+        cursor = self.conn.cursor()
+        # 首先尝试更新，如果词语不存在，则插入
+        cursor.execute(
+            "UPDATE word_frequency SET frequency = frequency + 1 WHERE word = ?",
+            (word,),
+        )
+        if cursor.rowcount == 0:
+            cursor.execute(
+                "INSERT INTO word_frequency (word, frequency) VALUES (?, 1)", (word,)
+            )
+        self.conn.commit()
+
+        # 打印更新后的频率以供调试
+        new_freq = self.get_word_frequency(word)
+        print(f"词语 '{word}' 选择次数更新为: {new_freq}")
 
     def get_word_frequency(self, word):
-        """获取词语被选择的次数"""
-        return self.word_frequency.get(word, 0)
+        """从数据库获取词语被选择的次数"""
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT frequency FROM word_frequency WHERE word = ?", (word,))
+        row = cursor.fetchone()
+        return row[0] if row else 0
 
     def weighted_choice(self, words):
         """基于反向权重选择词语，被选择次数越多的词语权重越低"""
@@ -220,31 +235,22 @@ class TranslationCache:
         if len(words) == 1:
             return words[0]
 
-        # 计算每个词语的权重（反向权重）
         weights = []
         for word in words:
             frequency = self.get_word_frequency(word)
             # 使用反向权重公式：1/(frequency + 1)
-            # 这样频率为0的词语权重为1，频率越高权重越低
             weight = 1.0 / (frequency + 1)
             weights.append(weight)
 
-        # 计算累积权重
-        total_weight = sum(weights)
-        cumulative_weights = []
-        cumulative_sum = 0
-        for weight in weights:
-            cumulative_sum += weight / total_weight
-            cumulative_weights.append(cumulative_sum)
+        # 使用 random.choices 进行带权重的随机选择，更简洁
+        chosen_word = random.choices(words, weights=weights, k=1)[0]
+        return chosen_word
 
-        # 生成随机数并选择对应的词语
-        rand = random.random()
-        for i, cumulative_weight in enumerate(cumulative_weights):
-            if rand <= cumulative_weight:
-                return words[i]
-
-        # fallback，理论上不应该到达这里
-        return words[-1]
+    def __del__(self):
+        """在对象销毁时关闭数据库连接"""
+        if self.conn:
+            self.conn.close()
+            print("数据库连接已关闭。")
 
 
 # ==============================================================================
