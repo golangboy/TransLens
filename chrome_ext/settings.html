@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>翻译插件设置</title>
+    <title>TransLens - 智能语言学习助手</title>
     <style>
         :root {
             --calm-blue: #1e3a5f;
@@ -57,6 +57,24 @@
             color: var(--deep-gray);
             font-weight: 700;
             letter-spacing: -0.025em;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+        }
+        
+        .logo-icon {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, var(--soft-cyan) 0%, var(--calm-blue) 100%);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 16px;
+            font-weight: 600;
+            flex-shrink: 0;
         }
         
         .header p {
@@ -273,8 +291,11 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>翻译设置</h1>
-            <p>配置翻译服务器地址和API参数</p>
+            <h1>
+                <div class="logo-icon">T</div>
+                TransLens
+            </h1>
+            <p>专注语言学习的智能翻译助手 - 个性化配置中心</p>
         </div>
         
         <div class="current-settings">
@@ -289,58 +310,67 @@
                 <div style="margin-bottom: 8px;">API密钥: <span id="currentApiKey" class="current-value">加载中...</span></div>
                 <div style="margin-bottom: 8px;">系统提示词: <span id="currentSystemPrompt" class="current-value">加载中...</span></div>
                 <div style="margin-bottom: 8px;">用户提示词模板: <span id="currentUserPromptTemplate" class="current-value">加载中...</span></div>
+                <div style="margin-bottom: 8px;">选择比例: <span id="currentSelectionPercentage" class="current-value">加载中...</span></div>
             </div>
         </div>
         
         <div class="current-settings">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-                <h3 style="margin: 0;">缓存状态</h3>
-                <button class="btn btn-reset-small" id="clearCacheBtn">清空缓存</button>
+                <h3 style="margin: 0;">学习数据状态</h3>
+                <button class="btn btn-reset-small" id="clearCacheBtn">清空学习记录</button>
             </div>
             <div style="font-size: 13px; color: var(--text-secondary); line-height: 1.6;">
-                <div style="margin-bottom: 8px;">翻译缓存: <span id="cacheCount" class="current-value">加载中...</span></div>
-                <div style="margin-bottom: 8px;">词语频率: <span id="frequencyCount" class="current-value">加载中...</span></div>
+                <div style="margin-bottom: 8px;">学习记录: <span id="cacheCount" class="current-value">加载中...</span></div>
+                <div style="margin-bottom: 8px;">词汇掌握度: <span id="frequencyCount" class="current-value">加载中...</span></div>
             </div>
         </div>
         
         <div class="form-group">
-            <label for="serverUrl">后端服务地址</label>
+            <label for="serverUrl">学习服务器地址</label>
             <input type="url" id="serverUrl" placeholder="http://127.0.0.1:5000" required />
         </div>
         
         <div class="form-group">
-            <label for="apiUrl">API地址</label>
+            <label for="apiUrl">智能翻译API地址</label>
             <input type="url" id="apiUrl" placeholder="http://localhost:8080/v1/chat/completions" />
         </div>
         
         <div class="form-group">
-            <label for="apiKey">API密钥</label>
-            <input type="password" id="apiKey" placeholder="输入API密钥（可选）" />
+            <label for="apiKey">API访问密钥</label>
+            <input type="password" id="apiKey" placeholder="输入您的API密钥（可选）" />
         </div>
         
         <div class="form-group">
-            <label for="modelName">模型名称</label>
+            <label for="modelName">AI学习模型</label>
             <input type="text" id="modelName" placeholder="例如: gpt-3.5-turbo" />
         </div>
         
         <div class="form-group">
-            <label for="systemPrompt">系统提示词</label>
-            <textarea id="systemPrompt" rows="3" placeholder="例如: 你是一个英语翻译专家，精通于根据中文上下文去翻译词汇的意思。"></textarea>
+            <label for="systemPrompt">AI教学助手角色设定</label>
+            <textarea id="systemPrompt" rows="3" placeholder="例如: 你是一个专业的语言学习导师，擅长根据上下文提供精准的词汇翻译和学习建议。"></textarea>
         </div>
         
         <div class="form-group">
-            <label for="userPromptTemplate">用户提示词模板</label>
-            <textarea id="userPromptTemplate" rows="2" placeholder="例如: 翻译下面句子中的「{target_word}」：{context_sentence}"></textarea>
+            <label for="userPromptTemplate">学习提示词模板</label>
+            <textarea id="userPromptTemplate" rows="2" placeholder="例如: 请解释句子中「{target_word}」的含义：{context_sentence}"></textarea>
             <small style="color: var(--text-muted); font-size: 12px; margin-top: 8px; display: block; line-height: 1.4;">
-                提示：使用 {target_word} 代表目标词汇，{context_sentence} 代表上下文句子
+                💡 使用 {target_word} 代表学习词汇，{context_sentence} 代表语境句子
+            </small>
+        </div>
+        
+        <div class="form-group">
+            <label for="selectionPercentage">中文句子选择比例 (%)</label>
+            <input type="number" id="selectionPercentage" min="1" max="100" step="1" placeholder="40" />
+            <small style="color: var(--text-muted); font-size: 12px; margin-top: 8px; display: block; line-height: 1.4;">
+                💡 设置每次随机选择多少百分比的中文句子进行翻译，范围: 1-100%
             </small>
         </div>
         
         <div class="actions-section">
             <!-- Primary actions: Save is most important, Test is secondary functional action -->
             <div class="primary-actions">
-                <button class="btn btn-primary" id="saveBtn">保存设置</button>
-                <button class="btn btn-test" id="testBtn">测试翻译</button>
+                <button class="btn btn-primary" id="saveBtn">保存学习配置</button>
+                <button class="btn btn-test" id="testBtn">测试学习助手</button>
             </div>
         </div>
         

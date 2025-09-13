@@ -15,7 +15,8 @@
         apiKey: '',
         modelName: '',
         systemPrompt: '你是一个英语翻译专家，精通于根据中文上下文去翻译词汇的意思。',
-        userPromptTemplate: '翻译下面句子中的「{target_word}」：{context_sentence}'
+        userPromptTemplate: '翻译下面句子中的「{target_word}」：{context_sentence}',
+        selectionPercentage: 40
     };
 
     // 执行主要功能
@@ -229,9 +230,10 @@
             return;
         }
         
-        // 随机选择20%的中文句子
-        const selectedTexts = randomSelectTexts(chineseTexts, 0.4);
-        console.log(`随机选择了 ${selectedTexts.length} 个中文句子进行翻译：`);
+        // 根据配置选择中文句子
+        const selectionPercentage = (translatorConfig?.selectionPercentage || DEFAULT_CONFIG.selectionPercentage) / 100;
+        const selectedTexts = randomSelectTexts(chineseTexts, selectionPercentage);
+        console.log(`按照 ${Math.round(selectionPercentage * 100)}% 的比例随机选择了 ${selectedTexts.length} 个中文句子进行翻译：`);
         
         // 输出选中的句子
         selectedTexts.forEach((textData, index) => {

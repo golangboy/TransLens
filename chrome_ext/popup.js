@@ -9,7 +9,8 @@
         apiKey: '',
         modelName: '',
         systemPrompt: '你是一个英语翻译专家，精通于根据中文上下文去翻译词汇的意思。',
-        userPromptTemplate: '翻译下面句子中的「{target_word}」：{context_sentence}'
+        userPromptTemplate: '翻译下面句子中的「{target_word}」：{context_sentence}',
+        selectionPercentage: 40
     };
     
     // DOM元素
@@ -19,6 +20,7 @@
     let modelNameInput;
     let systemPromptInput;
     let userPromptTemplateInput;
+    let selectionPercentageInput;
     let saveBtn;
     let resetBtn;
     let testBtn;
@@ -30,6 +32,7 @@
     let currentApiKeyDiv;
     let currentSystemPromptDiv;
     let currentUserPromptTemplateDiv;
+    let currentSelectionPercentageDiv;
     let cacheCountDiv;
     let frequencyCountDiv;
     
@@ -48,6 +51,7 @@
         modelNameInput = document.getElementById('modelName');
         systemPromptInput = document.getElementById('systemPrompt');
         userPromptTemplateInput = document.getElementById('userPromptTemplate');
+        selectionPercentageInput = document.getElementById('selectionPercentage');
         saveBtn = document.getElementById('saveBtn');
         resetBtn = document.getElementById('resetBtn');
         testBtn = document.getElementById('testBtn');
@@ -59,6 +63,7 @@
         currentApiKeyDiv = document.getElementById('currentApiKey');
         currentSystemPromptDiv = document.getElementById('currentSystemPrompt');
         currentUserPromptTemplateDiv = document.getElementById('currentUserPromptTemplate');
+        currentSelectionPercentageDiv = document.getElementById('currentSelectionPercentage');
         cacheCountDiv = document.getElementById('cacheCount');
         frequencyCountDiv = document.getElementById('frequencyCount');
     }
@@ -73,6 +78,7 @@
             modelNameInput.value = config.modelName || '';
             systemPromptInput.value = config.systemPrompt || '';
             userPromptTemplateInput.value = config.userPromptTemplate || '';
+            selectionPercentageInput.value = config.selectionPercentage || '';
             
             currentServerUrlDiv.textContent = config.serverUrl || '未设置';
             currentApiUrlDiv.textContent = config.apiUrl || '未设置';
@@ -80,6 +86,7 @@
             currentApiKeyDiv.textContent = config.apiKey ? '已设置' : '未设置';
             currentSystemPromptDiv.textContent = (config.systemPrompt || '未设置').substring(0, 20) + '...';
             currentUserPromptTemplateDiv.textContent = (config.userPromptTemplate || '未设置').substring(0, 20) + '...';
+            currentSelectionPercentageDiv.textContent = (config.selectionPercentage || DEFAULT_CONFIG.selectionPercentage) + '%';
             
             // 加载缓存状态
             loadCacheStatus();
@@ -103,6 +110,7 @@
         apiKeyInput.addEventListener('input', updateApiPreview);
         systemPromptInput.addEventListener('input', updatePromptPreview);
         userPromptTemplateInput.addEventListener('input', updatePromptPreview);
+        selectionPercentageInput.addEventListener('input', updateSelectionPreview);
         
         // 回车键保存
         serverUrlInput.addEventListener('keypress', function(e) {
@@ -140,6 +148,12 @@
                 saveSettings();
             }
         });
+        
+        selectionPercentageInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                saveSettings();
+            }
+        });
     }
     
     // 更新预览
@@ -168,6 +182,13 @@
         currentUserPromptTemplateDiv.textContent = userPromptTemplate.substring(0, 20) + '...';
     }
     
+    // 更新选择比例预览
+    function updateSelectionPreview() {
+        const percentage = selectionPercentageInput.value.trim();
+        const displayValue = percentage || DEFAULT_CONFIG.selectionPercentage;
+        currentSelectionPercentageDiv.textContent = displayValue + '%';
+    }
+    
     // 保存设置
     async function saveSettings() {
         const serverUrl = serverUrlInput.value.trim();
@@ -176,6 +197,7 @@
         const modelName = modelNameInput.value.trim();
         const systemPrompt = systemPromptInput.value.trim();
         const userPromptTemplate = userPromptTemplateInput.value.trim();
+        const selectionPercentage = parseInt(selectionPercentageInput.value.trim()) || DEFAULT_CONFIG.selectionPercentage;
         
         // 验证必填项
         if (!serverUrl) {
@@ -204,6 +226,12 @@
             return;
         }
         
+        // 验证选择比例
+        if (selectionPercentage < 1 || selectionPercentage > 100) {
+            showStatus('选择比例必须在1-100之间', 'error');
+            return;
+        }
+        
         try {
             const config = {
                 serverUrl: serverUrl,
@@ -212,6 +240,7 @@
                 modelName: modelName,
                 systemPrompt: systemPrompt,
                 userPromptTemplate: userPromptTemplate,
+                selectionPercentage: selectionPercentage,
                 lastUpdated: Date.now()
             };
             
@@ -225,6 +254,7 @@
             currentApiKeyDiv.textContent = config.apiKey ? '已设置' : '未设置';
             currentSystemPromptDiv.textContent = (config.systemPrompt || '未设置').substring(0, 20) + '...';
             currentUserPromptTemplateDiv.textContent = (config.userPromptTemplate || '未设置').substring(0, 20) + '...';
+            currentSelectionPercentageDiv.textContent = config.selectionPercentage + '%';
             
             // 通知content script配置已更新
             notifyConfigUpdate();
@@ -247,6 +277,7 @@
             modelNameInput.value = DEFAULT_CONFIG.modelName;
             systemPromptInput.value = DEFAULT_CONFIG.systemPrompt;
             userPromptTemplateInput.value = DEFAULT_CONFIG.userPromptTemplate;
+            selectionPercentageInput.value = DEFAULT_CONFIG.selectionPercentage;
             
             await chrome.storage.sync.set({ 
                 translatorConfig: { 
@@ -258,6 +289,7 @@
             updatePreview();
             updateApiPreview();
             updatePromptPreview();
+            updateSelectionPreview();
             notifyConfigUpdate();
             loadCacheStatus();
         } catch (error) {

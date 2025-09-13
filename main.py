@@ -368,10 +368,20 @@ def translate_word():
 
     # 使用 jieba.posseg 提取名词和动词
     words = pseg.lcut(context_sentence)
-    result = [word for word, flag in words if flag.startswith('n') or flag.startswith('v')]
+    result = [
+        word for word, flag in words
+        if (
+            flag.startswith('n')      # 名词
+            or flag.startswith('v')   # 动词
+            or flag == 'a'            # 形容词
+            or flag == 'nr'           # 人名
+            or flag == 'nw'           # 作品名
+            or flag == 'LOC'          # 地名
+        )
+    ]
 
     if not result:
-        return jsonify({"error": "句子中未找到可翻译的名词或动词"}), 404
+        return jsonify({"error": "句子中未找到可翻译的词语"}), 404
 
     # 使用加权选择，被选择次数多的词语权重更低
     target_word = translation_cache.weighted_choice(result)
