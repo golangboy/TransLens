@@ -35,6 +35,12 @@
     let currentSelectionPercentageDiv;
     let cacheCountDiv;
     let frequencyCountDiv;
+    let familiarWordsCountDiv;
+    let familiarWordsListDiv;
+    let refreshFamiliarWordsBtn;
+    let clearFamiliarWordsBtn;
+    let manualFamiliarWordInput;
+    let addFamiliarWordBtn;
     
     // 初始化
     document.addEventListener('DOMContentLoaded', function() {
@@ -66,6 +72,12 @@
         currentSelectionPercentageDiv = document.getElementById('currentSelectionPercentage');
         cacheCountDiv = document.getElementById('cacheCount');
         frequencyCountDiv = document.getElementById('frequencyCount');
+        familiarWordsCountDiv = document.getElementById('familiarWordsCount');
+        familiarWordsListDiv = document.getElementById('familiarWordsList');
+        refreshFamiliarWordsBtn = document.getElementById('refreshFamiliarWordsBtn');
+        clearFamiliarWordsBtn = document.getElementById('clearFamiliarWordsBtn');
+        manualFamiliarWordInput = document.getElementById('manualFamiliarWord');
+        addFamiliarWordBtn = document.getElementById('addFamiliarWordBtn');
     }
     
     // 加载当前设置
@@ -90,6 +102,9 @@
             
             // 加载缓存状态
             loadCacheStatus();
+            
+            // 加载熟悉单词列表
+            loadFamiliarWords();
         } catch (error) {
             console.error('加载设置失败:', error);
             showStatus('加载设置失败', 'error');
@@ -102,6 +117,14 @@
         resetBtn.addEventListener('click', resetSettings);
         testBtn.addEventListener('click', testConnection);
         clearCacheBtn.addEventListener('click', clearCache);
+        refreshFamiliarWordsBtn.addEventListener('click', loadFamiliarWords);
+        clearFamiliarWordsBtn.addEventListener('click', clearFamiliarWords);
+        addFamiliarWordBtn.addEventListener('click', addFamiliarWord);
+        manualFamiliarWordInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                addFamiliarWord();
+            }
+        });
         
         // 输入框变化时更新预览
         serverUrlInput.addEventListener('input', updatePreview);
@@ -438,6 +461,7 @@
             if (!serverUrl) {
                 cacheCountDiv.textContent = '未配置服务器';
                 frequencyCountDiv.textContent = '未配置服务器';
+                familiarWordsCountDiv.textContent = '未配置服务器';
                 return;
             }
             
@@ -453,14 +477,17 @@
                 const status = await response.json();
                 cacheCountDiv.textContent = `${status.cache_entries} 条记录`;
                 frequencyCountDiv.textContent = `${status.frequency_entries} 个词语`;
+                familiarWordsCountDiv.textContent = `${status.familiar_words_count} 个单词`;
             } else {
                 cacheCountDiv.textContent = '获取失败';
                 frequencyCountDiv.textContent = '获取失败';
+                familiarWordsCountDiv.textContent = '获取失败';
             }
         } catch (error) {
             console.error('获取缓存状态失败:', error);
             cacheCountDiv.textContent = '连接失败';
             frequencyCountDiv.textContent = '连接失败';
+            familiarWordsCountDiv.textContent = '连接失败';
         }
     }
     
@@ -532,6 +559,219 @@
                 }
             });
         });
+    }
+    
+    // 加载熟悉单词列表
+    async function loadFamiliarWords() {
+        try {
+            const config = await getStoredConfig();
+            const serverUrl = config.serverUrl;
+            
+            if (!serverUrl) {
+                familiarWordsListDiv.innerHTML = '<div style="color: var(--text-muted); text-align: center; padding: 20px;">未配置服务器</div>';
+                return;
+            }
+            
+            // 显示加载状态
+            familiarWordsListDiv.innerHTML = '<div style="color: var(--text-muted); text-align: center; padding: 20px;">加载中...</div>';
+            
+            const apiUrl = `${serverUrl}/familiar-words`;
+            const response = await fetch(apiUrl, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
+            
+            if (response.ok) {
+                const result = await response.json();
+                displayFamiliarWords(result.familiar_words);
+            } else {
+                familiarWordsListDiv.innerHTML = '<div style="color: var(--text-muted); text-align: center; padding: 20px;">获取失败</div>';
+            }
+        } catch (error) {
+            console.error('加载熟悉单词失败:', error);
+            familiarWordsListDiv.innerHTML = '<div style="color: var(--text-muted); text-align: center; padding: 20px;">连接失败</div>';
+        }
+    }
+    
+    // 显示熟悉单词列表
+    function displayFamiliarWords(words) {
+        if (!words || words.length === 0) {
+            familiarWordsListDiv.innerHTML = '<div style="color: var(--text-muted); text-align: center; padding: 20px;">暂无熟悉单词</div>';
+            return;
+        }
+        
+        const wordsHtml = words.map(word => `
+            <div style="
+                display: flex; 
+                justify-content: space-between; 
+                align-items: center; 
+                padding: 8px 12px; 
+                border: 1px solid var(--border-gray); 
+                border-radius: 6px; 
+                margin-bottom: 4px;
+                background: #f8fafc;
+            ">
+                <span style="font-weight: 500; color: var(--text-primary);">${escapeHtml(word)}</span>
+                <button onclick="removeFamiliarWord('${escapeHtml(word)}')" style="
+                    background: #f87171; 
+                    color: white; 
+                    border: none; 
+                    border-radius: 4px; 
+                    padding: 4px 8px; 
+                    font-size: 11px; 
+                    cursor: pointer;
+                    transition: background-color 0.2s;
+                " onmouseover="this.style.backgroundColor='#ef4444'" onmouseout="this.style.backgroundColor='#f87171'">
+                    移除
+                </button>
+            </div>
+        `).join('');
+        
+        familiarWordsListDiv.innerHTML = wordsHtml;
+    }
+    
+    // 添加熟悉单词
+    async function addFamiliarWord() {
+        const word = manualFamiliarWordInput.value.trim();
+        
+        if (!word) {
+            showStatus('请输入要添加的单词', 'error');
+            return;
+        }
+        
+        try {
+            const config = await getStoredConfig();
+            const serverUrl = config.serverUrl;
+            
+            if (!serverUrl) {
+                showStatus('请先配置服务器地址', 'error');
+                return;
+            }
+            
+            addFamiliarWordBtn.disabled = true;
+            addFamiliarWordBtn.textContent = '添加中...';
+            
+            const apiUrl = `${serverUrl}/familiar-words`;
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ word: word })
+            });
+            
+            if (response.ok) {
+                const result = await response.json();
+                showStatus(`单词"${word}"已添加到熟悉列表`, 'success');
+                manualFamiliarWordInput.value = '';
+                
+                // 刷新列表和状态
+                loadFamiliarWords();
+                loadCacheStatus();
+            } else {
+                const errorData = await response.json();
+                showStatus(`添加失败: ${errorData.error}`, 'error');
+            }
+        } catch (error) {
+            console.error('添加熟悉单词失败:', error);
+            showStatus(`添加失败: ${error.message}`, 'error');
+        } finally {
+            addFamiliarWordBtn.disabled = false;
+            addFamiliarWordBtn.textContent = '添加';
+        }
+    }
+    
+    // 移除熟悉单词（全局函数，供HTML onclick调用）
+    window.removeFamiliarWord = async function(word) {
+        if (!confirm(`确定要从熟悉列表中移除单词"${word}"吗？`)) {
+            return;
+        }
+        
+        try {
+            const config = await getStoredConfig();
+            const serverUrl = config.serverUrl;
+            
+            if (!serverUrl) {
+                showStatus('请先配置服务器地址', 'error');
+                return;
+            }
+            
+            const apiUrl = `${serverUrl}/familiar-words/${encodeURIComponent(word)}`;
+            const response = await fetch(apiUrl, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
+            
+            if (response.ok) {
+                showStatus(`单词"${word}"已从熟悉列表中移除`, 'success');
+                
+                // 刷新列表和状态
+                loadFamiliarWords();
+                loadCacheStatus();
+            } else {
+                const errorData = await response.json();
+                showStatus(`移除失败: ${errorData.error}`, 'error');
+            }
+        } catch (error) {
+            console.error('移除熟悉单词失败:', error);
+            showStatus(`移除失败: ${error.message}`, 'error');
+        }
+    };
+    
+    // 清空所有熟悉单词
+    async function clearFamiliarWords() {
+        if (!confirm('确定要清空所有熟悉单词吗？此操作不可撤销！')) {
+            return;
+        }
+        
+        try {
+            const config = await getStoredConfig();
+            const serverUrl = config.serverUrl;
+            
+            if (!serverUrl) {
+                showStatus('请先配置服务器地址', 'error');
+                return;
+            }
+            
+            clearFamiliarWordsBtn.disabled = true;
+            clearFamiliarWordsBtn.textContent = '清空中...';
+            
+            const apiUrl = `${serverUrl}/familiar-words/clear`;
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
+            
+            if (response.ok) {
+                showStatus('所有熟悉单词已清空', 'success');
+                
+                // 刷新列表和状态
+                loadFamiliarWords();
+                loadCacheStatus();
+            } else {
+                const errorData = await response.json();
+                showStatus(`清空失败: ${errorData.error}`, 'error');
+            }
+        } catch (error) {
+            console.error('清空熟悉单词失败:', error);
+            showStatus(`清空失败: ${error.message}`, 'error');
+        } finally {
+            clearFamiliarWordsBtn.disabled = false;
+            clearFamiliarWordsBtn.textContent = '清空全部';
+        }
+    }
+    
+    // HTML转义函数
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
     
     

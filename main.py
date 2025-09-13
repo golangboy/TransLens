@@ -104,15 +104,18 @@ class ConfigManager:
 class TranslationCache:
     """翻译缓存类，用于管理翻译结果的缓存和持久化，以及词语选择频率跟踪"""
     
-    def __init__(self, cache_file='data/translation_cache.json', frequency_file='data/word_frequency.json'):
+    def __init__(self, cache_file='data/translation_cache.json', frequency_file='data/word_frequency.json', familiar_words_file='data/familiar_words.json'):
         self.cache_file = cache_file
         self.frequency_file = frequency_file
+        self.familiar_words_file = familiar_words_file
         # 确保data目录存在
         os.makedirs(os.path.dirname(self.cache_file), exist_ok=True)
         self.cache = {}
         self.word_frequency = {}  # 记录每个词语被选择的次数
+        self.familiar_words = set()  # 记录用户熟悉的单词
         self.load_cache()
         self.load_frequency()
+        self.load_familiar_words()
     
     def _generate_key(self, sentence, target_word):
         """根据句子和目标词生成缓存键"""
@@ -144,6 +147,20 @@ class TranslationCache:
         except Exception as e:
             print(f"加载频率失败: {e}")
             self.word_frequency = {}
+    
+    def load_familiar_words(self):
+        """从文件加载熟悉的单词列表"""
+        try:
+            if os.path.exists(self.familiar_words_file):
+                with open(self.familiar_words_file, 'r', encoding='utf-8') as f:
+                    familiar_list = json.load(f)
+                    self.familiar_words = set(familiar_list)
+                print(f"熟悉单词已从 {self.familiar_words_file} 加载，共 {len(self.familiar_words)} 个单词")
+            else:
+                print(f"熟悉单词文件 {self.familiar_words_file} 不存在，将创建新的记录")
+        except Exception as e:
+            print(f"加载熟悉单词失败: {e}")
+            self.familiar_words = set()
 
     def save_cache(self):
         """将缓存保存到文件"""
@@ -162,6 +179,16 @@ class TranslationCache:
             print(f"词语频率已保存到 {self.frequency_file}")
         except Exception as e:
             print(f"保存频率失败: {e}")
+    
+    def save_familiar_words(self):
+        """将熟悉的单词列表保存到文件"""
+        try:
+            familiar_list = list(self.familiar_words)
+            with open(self.familiar_words_file, 'w', encoding='utf-8') as f:
+                json.dump(familiar_list, f, ensure_ascii=False, indent=2)
+            print(f"熟悉单词已保存到 {self.familiar_words_file}")
+        except Exception as e:
+            print(f"保存熟悉单词失败: {e}")
     
     def get(self, sentence, target_word):
         """获取缓存的翻译结果"""
@@ -225,6 +252,37 @@ class TranslationCache:
         
         # fallback，理论上不应该到达这里
         return words[-1]
+    
+    def add_familiar_word(self, word):
+        """添加熟悉的单词"""
+        self.familiar_words.add(word)
+        self.save_familiar_words()
+        print(f"单词 '{word}' 已添加到熟悉列表")
+    
+    def remove_familiar_word(self, word):
+        """从熟悉列表中移除单词"""
+        if word in self.familiar_words:
+            self.familiar_words.remove(word)
+            self.save_familiar_words()
+            print(f"单词 '{word}' 已从熟悉列表中移除")
+            return True
+        return False
+    
+    def is_familiar_word(self, word):
+        """检查单词是否为熟悉单词"""
+        return word in self.familiar_words
+    
+    def get_familiar_words_list(self):
+        """获取熟悉单词列表"""
+        return list(self.familiar_words)
+    
+    def filter_familiar_words(self, words):
+        """从词语列表中过滤掉熟悉的单词"""
+        filtered = [word for word in words if not self.is_familiar_word(word)]
+        if len(filtered) != len(words):
+            removed_words = [word for word in words if self.is_familiar_word(word)]
+            print(f"过滤掉熟悉单词: {removed_words}，剩余: {filtered}")
+        return filtered
 
 
 # 初始化翻译缓存和配置管理器
@@ -329,16 +387,93 @@ def get_cache_status():
     try:
         cache_count = len(translation_cache.cache)
         frequency_count = len(translation_cache.word_frequency)
+        familiar_count = len(translation_cache.familiar_words)
         
         return jsonify({
             "cache_entries": cache_count,
             "frequency_entries": frequency_count,
+            "familiar_words_count": familiar_count,
             "cache_file": translation_cache.cache_file,
-            "frequency_file": translation_cache.frequency_file
+            "frequency_file": translation_cache.frequency_file,
+            "familiar_words_file": translation_cache.familiar_words_file
         })
     
     except Exception as e:
         return jsonify({"error": f"获取缓存状态失败: {e}"}), 500
+
+
+@app.route('/familiar-words', methods=['POST'])
+def add_familiar_word():
+    """
+    添加熟悉的单词
+    """
+    data = request.json
+    if not data or 'word' not in data:
+        return jsonify({"error": "请提供有效的JSON，并包含 'word' 字段"}), 400
+    
+    word = data['word'].strip()
+    if not word:
+        return jsonify({"error": "单词不能为空"}), 400
+    
+    try:
+        translation_cache.add_familiar_word(word)
+        return jsonify({
+            "message": f"单词 '{word}' 已添加到熟悉列表",
+            "word": word,
+            "familiar_words_count": len(translation_cache.familiar_words)
+        })
+    except Exception as e:
+        return jsonify({"error": f"添加熟悉单词失败: {e}"}), 500
+
+
+@app.route('/familiar-words', methods=['GET'])
+def get_familiar_words():
+    """
+    获取熟悉单词列表
+    """
+    try:
+        familiar_words = translation_cache.get_familiar_words_list()
+        return jsonify({
+            "familiar_words": familiar_words,
+            "count": len(familiar_words)
+        })
+    except Exception as e:
+        return jsonify({"error": f"获取熟悉单词列表失败: {e}"}), 500
+
+
+@app.route('/familiar-words/<word>', methods=['DELETE'])
+def remove_familiar_word(word):
+    """
+    从熟悉列表中移除单词
+    """
+    try:
+        success = translation_cache.remove_familiar_word(word)
+        if success:
+            return jsonify({
+                "message": f"单词 '{word}' 已从熟悉列表中移除",
+                "word": word,
+                "familiar_words_count": len(translation_cache.familiar_words)
+            })
+        else:
+            return jsonify({"error": f"单词 '{word}' 不在熟悉列表中"}), 404
+    except Exception as e:
+        return jsonify({"error": f"移除熟悉单词失败: {e}"}), 500
+
+
+@app.route('/familiar-words/clear', methods=['POST'])
+def clear_familiar_words():
+    """
+    清空所有熟悉单词
+    """
+    try:
+        translation_cache.familiar_words.clear()
+        translation_cache.save_familiar_words()
+        return jsonify({
+            "message": "所有熟悉单词已清空",
+            "familiar_words_count": 0
+        })
+    except Exception as e:
+        return jsonify({"error": f"清空熟悉单词失败: {e}"}), 500
 
 
 @app.route('/translate', methods=['POST'])
@@ -383,8 +518,14 @@ def translate_word():
     if not result:
         return jsonify({"error": "句子中未找到可翻译的词语"}), 404
 
+    # 过滤掉熟悉的单词
+    filtered_result = translation_cache.filter_familiar_words(result)
+    
+    if not filtered_result:
+        return jsonify({"error": "句子中的所有词语都已熟悉，无需翻译"}), 404
+
     # 使用加权选择，被选择次数多的词语权重更低
-    target_word = translation_cache.weighted_choice(result)
+    target_word = translation_cache.weighted_choice(filtered_result)
     
     # 增加该词语的选择次数
     translation_cache.increment_word_frequency(target_word)
