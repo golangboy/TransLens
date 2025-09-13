@@ -22,6 +22,7 @@
     let saveBtn;
     let resetBtn;
     let testBtn;
+    let clearCacheBtn;
     let statusDiv;
     let currentServerUrlDiv;
     let currentApiUrlDiv;
@@ -29,6 +30,8 @@
     let currentApiKeyDiv;
     let currentSystemPromptDiv;
     let currentUserPromptTemplateDiv;
+    let cacheCountDiv;
+    let frequencyCountDiv;
     
     // 初始化
     document.addEventListener('DOMContentLoaded', function() {
@@ -48,6 +51,7 @@
         saveBtn = document.getElementById('saveBtn');
         resetBtn = document.getElementById('resetBtn');
         testBtn = document.getElementById('testBtn');
+        clearCacheBtn = document.getElementById('clearCacheBtn');
         statusDiv = document.getElementById('status');
         currentServerUrlDiv = document.getElementById('currentServerUrl');
         currentApiUrlDiv = document.getElementById('currentApiUrl');
@@ -55,6 +59,8 @@
         currentApiKeyDiv = document.getElementById('currentApiKey');
         currentSystemPromptDiv = document.getElementById('currentSystemPrompt');
         currentUserPromptTemplateDiv = document.getElementById('currentUserPromptTemplate');
+        cacheCountDiv = document.getElementById('cacheCount');
+        frequencyCountDiv = document.getElementById('frequencyCount');
     }
     
     // 加载当前设置
@@ -74,6 +80,9 @@
             currentApiKeyDiv.textContent = config.apiKey ? '已设置' : '未设置';
             currentSystemPromptDiv.textContent = (config.systemPrompt || '未设置').substring(0, 20) + '...';
             currentUserPromptTemplateDiv.textContent = (config.userPromptTemplate || '未设置').substring(0, 20) + '...';
+            
+            // 加载缓存状态
+            loadCacheStatus();
         } catch (error) {
             console.error('加载设置失败:', error);
             showStatus('加载设置失败', 'error');
@@ -85,6 +94,7 @@
         saveBtn.addEventListener('click', saveSettings);
         resetBtn.addEventListener('click', resetSettings);
         testBtn.addEventListener('click', testConnection);
+        clearCacheBtn.addEventListener('click', clearCache);
         
         // 输入框变化时更新预览
         serverUrlInput.addEventListener('input', updatePreview);
@@ -219,6 +229,9 @@
             // 通知content script配置已更新
             notifyConfigUpdate();
             
+            // 重新加载缓存状态
+            loadCacheStatus();
+            
         } catch (error) {
             console.error('保存设置失败:', error);
             showStatus('保存设置失败', 'error');
@@ -246,6 +259,7 @@
             updateApiPreview();
             updatePromptPreview();
             notifyConfigUpdate();
+            loadCacheStatus();
         } catch (error) {
             console.error('重置设置失败:', error);
             showStatus('重置设置失败', 'error');
@@ -380,6 +394,94 @@
             setTimeout(() => {
                 statusDiv.style.display = 'none';
             }, 5000); // 延长到5秒
+        }
+    }
+    
+    // 加载缓存状态
+    async function loadCacheStatus() {
+        try {
+            const config = await getStoredConfig();
+            const serverUrl = config.serverUrl;
+            
+            if (!serverUrl) {
+                cacheCountDiv.textContent = '未配置服务器';
+                frequencyCountDiv.textContent = '未配置服务器';
+                return;
+            }
+            
+            const statusUrl = `${serverUrl}/cache/status`;
+            const response = await fetch(statusUrl, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
+            
+            if (response.ok) {
+                const status = await response.json();
+                cacheCountDiv.textContent = `${status.cache_entries} 条记录`;
+                frequencyCountDiv.textContent = `${status.frequency_entries} 个词语`;
+            } else {
+                cacheCountDiv.textContent = '获取失败';
+                frequencyCountDiv.textContent = '获取失败';
+            }
+        } catch (error) {
+            console.error('获取缓存状态失败:', error);
+            cacheCountDiv.textContent = '连接失败';
+            frequencyCountDiv.textContent = '连接失败';
+        }
+    }
+    
+    // 清空缓存
+    async function clearCache() {
+        const serverUrl = serverUrlInput.value.trim();
+        
+        if (!serverUrl) {
+            showStatus('请先输入后端服务地址', 'error');
+            return;
+        }
+        
+        if (!isValidUrl(serverUrl)) {
+            showStatus('请输入有效的URL地址', 'error');
+            return;
+        }
+        
+        // 确认对话框
+        if (!confirm('确定要清空所有翻译缓存和词语频率数据吗？此操作不可撤销。')) {
+            return;
+        }
+        
+        showStatus('正在清空缓存...', 'testing');
+        clearCacheBtn.disabled = true;
+        
+        try {
+            const clearUrl = `${serverUrl}/cache/clear`;
+            const response = await fetch(clearUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
+            
+            if (response.ok) {
+                const result = await response.json();
+                showStatus('缓存清空成功！', 'success');
+                
+                // 更新缓存状态显示
+                cacheCountDiv.textContent = '0 条记录';
+                frequencyCountDiv.textContent = '0 个词语';
+                
+                console.log('缓存清空结果:', result);
+            } else {
+                const errorText = await response.text();
+                showStatus(`清空缓存失败: HTTP ${response.status}\n${errorText}`, 'error');
+            }
+            
+        } catch (error) {
+            showStatus(`清空缓存失败: ${error.message}`, 'error');
+            console.error('清空缓存失败:', error);
+        } finally {
+            clearCacheBtn.disabled = false;
         }
     }
     

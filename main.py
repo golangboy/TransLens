@@ -294,6 +294,53 @@ def get_config():
         return jsonify({"error": f"获取配置失败: {e}"}), 500
 
 
+@app.route('/cache/clear', methods=['POST'])
+def clear_cache():
+    """
+    清空翻译缓存和词语频率数据
+    """
+    try:
+        # 清空缓存数据
+        translation_cache.cache = {}
+        translation_cache.word_frequency = {}
+        
+        # 保存空的缓存和频率数据到文件
+        translation_cache.save_cache()
+        translation_cache.save_frequency()
+        
+        print("缓存和词语频率数据已清空")
+        
+        return jsonify({
+            "message": "缓存清空成功",
+            "cache_cleared": True,
+            "frequency_cleared": True
+        })
+    
+    except Exception as e:
+        print(f"清空缓存失败: {e}")
+        return jsonify({"error": f"清空缓存失败: {e}"}), 500
+
+
+@app.route('/cache/status', methods=['GET'])
+def get_cache_status():
+    """
+    获取缓存状态信息
+    """
+    try:
+        cache_count = len(translation_cache.cache)
+        frequency_count = len(translation_cache.word_frequency)
+        
+        return jsonify({
+            "cache_entries": cache_count,
+            "frequency_entries": frequency_count,
+            "cache_file": translation_cache.cache_file,
+            "frequency_file": translation_cache.frequency_file
+        })
+    
+    except Exception as e:
+        return jsonify({"error": f"获取缓存状态失败: {e}"}), 500
+
+
 @app.route('/translate', methods=['POST'])
 def translate_word():
     """

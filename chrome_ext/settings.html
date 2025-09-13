@@ -292,14 +292,25 @@
             </div>
         </div>
         
+        <div class="current-settings">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <h3 style="margin: 0;">缓存状态</h3>
+                <button class="btn btn-reset-small" id="clearCacheBtn">清空缓存</button>
+            </div>
+            <div style="font-size: 13px; color: var(--text-secondary); line-height: 1.6;">
+                <div style="margin-bottom: 8px;">翻译缓存: <span id="cacheCount" class="current-value">加载中...</span></div>
+                <div style="margin-bottom: 8px;">词语频率: <span id="frequencyCount" class="current-value">加载中...</span></div>
+            </div>
+        </div>
+        
         <div class="form-group">
             <label for="serverUrl">后端服务地址</label>
-            <input type="url" id="serverUrl" placeholder="例如: http://127.0.0.1:5000" required />
+            <input type="url" id="serverUrl" placeholder="http://127.0.0.1:5000" required />
         </div>
         
         <div class="form-group">
             <label for="apiUrl">API地址</label>
-            <input type="url" id="apiUrl" placeholder="例如: http://localhost:8080/v1/chat/completions" />
+            <input type="url" id="apiUrl" placeholder="http://localhost:8080/v1/chat/completions" />
         </div>
         
         <div class="form-group">
