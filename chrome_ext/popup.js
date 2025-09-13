@@ -5,7 +5,7 @@
     // 默认配置
     const DEFAULT_CONFIG = {
         serverUrl: 'http://127.0.0.1:5000',
-        apiUrl: '',
+        apiUrl: 'http://localhost:8080/v1/chat/completions',
         apiKey: '',
         modelName: '',
         systemPrompt: '你是一个英语翻译专家，精通于根据中文上下文去翻译词汇的意思。',
