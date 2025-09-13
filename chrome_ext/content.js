@@ -8,16 +8,7 @@
     let hasExecuted = false; // 防止重复执行
     let translatorConfig = null; // 存储翻译配置
     
-    // 默认配置
-    const DEFAULT_CONFIG = {
-        serverUrl: 'http://127.0.0.1:5000',
-        apiUrl: '',
-        apiKey: '',
-        modelName: '',
-        systemPrompt: '你是一个英语翻译专家，精通于根据中文上下文去翻译词汇的意思。你只需返回目标词汇的意思，不要有任何多余的内容。',
-        userPromptTemplate: '翻译下面句子中的「{target_word}」：{context_sentence}',
-        selectionPercentage: 10
-    };
+    // 使用共享的默认配置（由 config.js 提供）
 
     // 执行主要功能
     async function executeMain() {

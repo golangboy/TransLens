@@ -1,12 +1,7 @@
 // Chrome插件后台脚本 - 智能翻译助手
 
-// 默认配置
-const DEFAULT_CONFIG = {
-    serverUrl: 'http://127.0.0.1:5000',
-    apiUrl: '',
-    apiKey: '',
-    modelName: ''
-};
+// 引入共享配置
+importScripts('config.js');
 
 // 插件安装或启动时初始化
 chrome.runtime.onInstalled.addListener(async function(details) {
