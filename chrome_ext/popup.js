@@ -266,16 +266,18 @@
             return;
         }
         
-        showStatus('正在测试连接...', 'testing');
+        showStatus('正在测试翻译服务...', 'testing');
         testBtn.disabled = true;
         
         try {
             const testUrl = `${serverUrl}/translate`;
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 5000); // 5秒超时
+            const timeoutId = setTimeout(() => controller.abort(), 10000); // 10秒超时，翻译需要更多时间
             
+            // 使用一个包含中文的测试句子
+            const testSentence = '这是一个测试句子，用来验证翻译服务是否正常工作。';
             const requestBody = {
-                sentence: '测试连接'
+                sentence: testSentence
             };
             
             // 如果有API配置，添加到请求中
@@ -290,10 +292,12 @@
                     api_url: apiUrl,
                     api_key: apiKey,
                     model_name: modelName,
-                    system_prompt: systemPrompt,
-                    user_prompt_template: userPromptTemplate
+                    system_prompt: systemPrompt || '你是一个英语翻译专家，精通于根据中文上下文去翻译词汇的意思。',
+                    user_prompt_template: userPromptTemplate || '翻译下面句子中的「{target_word}」：{context_sentence}'
                 };
             }
+            
+            console.log('发送翻译测试请求:', requestBody);
             
             const response = await fetch(testUrl, {
                 method: 'POST',
@@ -307,18 +311,28 @@
             clearTimeout(timeoutId);
             
             if (response.ok) {
-                showStatus('连接测试成功！ ✅', 'success');
+                const result = await response.json();
+                console.log('翻译测试响应:', result);
+                
+                if (result && result.target_word && result.translation) {
+                    showStatus(`翻译测试成功！ ✅\n发现词汇: "${result.target_word}" → "${result.translation}"`, 'success');
+                } else if (result && result.message) {
+                    showStatus(`服务连接成功，但翻译结果异常: ${result.message}`, 'error');
+                } else {
+                    showStatus('服务连接成功，但未返回有效的翻译结果', 'error');
+                }
             } else {
-                showStatus(`连接失败: HTTP ${response.status}`, 'error');
+                const errorText = await response.text();
+                showStatus(`翻译服务调用失败: HTTP ${response.status}\n${errorText}`, 'error');
             }
             
         } catch (error) {
             if (error.name === 'AbortError') {
-                showStatus('连接超时，请检查服务器地址', 'error');
+                showStatus('翻译服务请求超时，请检查服务器配置或网络连接', 'error');
             } else {
-                showStatus(`连接失败: ${error.message}`, 'error');
+                showStatus(`翻译服务测试失败: ${error.message}`, 'error');
             }
-            console.error('测试连接失败:', error);
+            console.error('翻译服务测试失败:', error);
         } finally {
             testBtn.disabled = false;
         }
@@ -352,15 +366,20 @@
     
     // 显示状态消息
     function showStatus(message, type) {
-        statusDiv.textContent = message;
+        // 处理多行消息，将\n转换为<br>
+        if (message.includes('\n')) {
+            statusDiv.innerHTML = message.replace(/\n/g, '<br>');
+        } else {
+            statusDiv.textContent = message;
+        }
         statusDiv.className = `status ${type}`;
         statusDiv.style.display = 'block';
         
-        // 3秒后自动隐藏成功消息
+        // 成功消息显示更长时间，错误消息不自动隐藏
         if (type === 'success') {
             setTimeout(() => {
                 statusDiv.style.display = 'none';
-            }, 3000);
+            }, 5000); // 延长到5秒
         }
     }
     

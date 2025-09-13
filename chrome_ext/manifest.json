@@ -20,7 +20,6 @@
     "service_worker": "background.js"
   },
   "action": {
-    "default_popup": "popup.html",
     "default_title": "翻译设置",
     "default_icon": {
       "16": "icon16.png",

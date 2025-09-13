@@ -31,7 +31,7 @@ chrome.runtime.onInstalled.addListener(async function(details) {
             if (details.reason === 'install') {
                 // 新安装时打开设置页面
                 chrome.tabs.create({
-                    url: chrome.runtime.getURL('popup.html')
+                    url: chrome.runtime.getURL('settings.html')
                 });
             }
         } else {
@@ -131,6 +131,14 @@ chrome.tabs.onUpdated.addListener(function(tabId, changeInfo, tab) {
             }
         });
     }
+});
+
+// 监听扩展图标点击事件
+chrome.action.onClicked.addListener(function(tab) {
+    // 打开设置页面在新标签页
+    chrome.tabs.create({
+        url: chrome.runtime.getURL('settings.html')
+    });
 });
 
 console.log('[翻译助手] 后台脚本已加载');
