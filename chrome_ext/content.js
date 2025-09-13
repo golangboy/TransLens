@@ -14,9 +14,9 @@
         apiUrl: '',
         apiKey: '',
         modelName: '',
-        systemPrompt: '你是一个英语翻译专家，精通于根据中文上下文去翻译词汇的意思。',
+        systemPrompt: '你是一个英语翻译专家，精通于根据中文上下文去翻译词汇的意思。你只需返回目标词汇的意思，不要有任何多余的内容。',
         userPromptTemplate: '翻译下面句子中的「{target_word}」：{context_sentence}',
-        selectionPercentage: 40
+        selectionPercentage: 10
     };
 
     // 执行主要功能
