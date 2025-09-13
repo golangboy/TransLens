@@ -935,7 +935,250 @@
         });
     }
     
+    /**
+     * 根据 XPath 获取单个元素。
+     * @param {string} path - 完整的 XPath 表达式。
+     * @returns {Node|null} - 找到的 DOM 元素，如果未找到则返回 null。
+     */
+    function getElementByFullXPath(path) {
+        // document.evaluate() 是用于执行 XPath 表达式的标准 DOM API
+        // XPathResult.FIRST_ORDERED_NODE_TYPE 表示我们只需要按文档顺序返回的第一个匹配节点
+        const result = document.evaluate(
+            path,
+            document,
+            null, // namespaceResolver (对于 HTML 通常为 null)
+            XPathResult.FIRST_ORDERED_NODE_TYPE,
+            null  // result (传入 null，让函数创建一个新结果)
+        );
+
+        // 结果对象的 .singleNodeValue 属性包含了我们正在寻找的元素（如果存在）
+        return result.singleNodeValue;
+    }
+
+    // B站弹幕监控相关变量
+    let isDanmuMonitoringActive = false;
+    let danmuElement = null;
+    let lastDanmuContent = '';
+    let danmuCheckInterval = null;
+
+    // 检查是否为B站视频页面
+    function isBilibiliVideoPage() {
+        return window.location.href.startsWith('https://www.bilibili.com/video');
+    }
+
+    // 初始化B站弹幕监控
+    function initBilibiliDanmuMonitor() {
+        if (!isBilibiliVideoPage()) {
+            console.log('[翻译助手] 当前页面不是B站视频页面，跳过弹幕监控');
+            return;
+        }
+
+        console.log('[翻译助手] 检测到B站视频页面，开始初始化弹幕监控');
+
+        // 等待页面完全加载后再开始监控
+        setTimeout(() => {
+            startDanmuMonitoring();
+        }, 3000);
+    }
+
+    // 开始弹幕监控
+    function startDanmuMonitoring() {
+        if (isDanmuMonitoringActive) {
+            console.log('[翻译助手] 弹幕监控已经在运行');
+            return;
+        }
+
+        console.log('[翻译助手] 开始B站弹幕监控');
+        
+        // B站弹幕的XPath路径
+        const danmuXPath = "/html/body/div[2]/div[2]/div[1]/div[2]/div[2]/div/div/div[1]/div[1]/div[8]/div/div[1]/div/div[1]/div/span";
+        
+        isDanmuMonitoringActive = true;
+        
+        // 每500毫秒检查一次弹幕内容变化
+        danmuCheckInterval = setInterval(() => {
+            checkDanmuContent(danmuXPath);
+        }, 500);
+        
+        console.log('[翻译助手] 弹幕监控已启动，检查间隔: 500ms');
+    }
+
+    // 检查弹幕内容变化
+    function checkDanmuContent(xpath) {
+        try {
+            const currentDanmuElement = getElementByFullXPath(xpath);
+            
+            if (currentDanmuElement) {
+                // 获取原始文本内容（不包含HTML标记）
+                const currentContent = currentDanmuElement.textContent.trim();
+                
+                // 检查是否已经包含翻译标记
+                const hasTranslation = currentDanmuElement.innerHTML.includes('translens-danmu-translation');
+                
+                // 如果弹幕内容发生变化且不为空，且没有翻译标记
+                if (currentContent && currentContent !== lastDanmuContent && !hasTranslation) {
+                    console.log(`[翻译助手] 检测到新弹幕: "${currentContent}"`);
+                    
+                    // 更新最后一次的弹幕内容
+                    lastDanmuContent = currentContent;
+                    
+                    // 如果弹幕包含中文，则进行翻译
+                    if (containsChinese(currentContent)) {
+                        console.log(`[翻译助手] 弹幕包含中文，准备翻译: "${currentContent}"`);
+                        translateDanmuContent(currentContent);
+                    } else {
+                        console.log(`[翻译助手] 弹幕不包含中文，跳过翻译: "${currentContent}"`);
+                    }
+                } else if (hasTranslation) {
+                    // 如果已经有翻译标记，获取原始内容作为lastDanmuContent
+                    const originalContent = currentContent.replace(/【.*?】/g, '').trim();
+                    if (originalContent && originalContent !== lastDanmuContent) {
+                        lastDanmuContent = originalContent;
+                    }
+                }
+            } else {
+                // 如果找不到弹幕元素，可能是页面结构变化或弹幕暂停
+                // 这里不做特殊处理，继续监控
+            }
+        } catch (error) {
+            console.error('[翻译助手] 检查弹幕内容时出错:', error);
+        }
+    }
+
+    // 检查文本是否包含中文
+    function containsChinese(text) {
+        const chineseRegex = /[\u4e00-\u9fff]/;
+        return chineseRegex.test(text);
+    }
+
+    // 翻译弹幕内容
+    async function translateDanmuContent(content) {
+        try {
+            console.log(`[翻译助手] 开始翻译弹幕: "${content}"`);
+            
+            const result = await callTranslateAPI(content);
+            
+            if (result && result.target_word && result.translation) {
+                console.log(`[翻译助手] 弹幕翻译成功: "${result.target_word}" -> "${result.translation}"`);
+                
+                // 直接在弹幕元素中插入翻译标记
+                insertDanmuTranslation(result.target_word, result.translation, content);
+            } else {
+                console.log(`[翻译助手] 弹幕翻译API未返回有效结果`);
+            }
+        } catch (error) {
+            console.error(`[翻译助手] 弹幕翻译失败:`, error);
+        }
+    }
+
+    // 在弹幕元素中插入翻译标记
+    function insertDanmuTranslation(targetWord, translation, originalContent) {
+        try {
+            // 重新获取弹幕元素，确保是最新的
+            const danmuXPath = "/html/body/div[2]/div[2]/div[1]/div[2]/div[2]/div/div/div[1]/div[1]/div[8]/div/div[1]/div/div[1]/div/span";
+            const danmuElement = getElementByFullXPath(danmuXPath);
+            
+            if (!danmuElement) {
+                console.log('[翻译助手] 无法找到弹幕元素，跳过插入翻译');
+                return;
+            }
+
+            // 检查当前弹幕内容是否仍然匹配
+            const currentContent = danmuElement.textContent.trim();
+            if (currentContent !== originalContent) {
+                console.log('[翻译助手] 弹幕内容已变化，跳过插入翻译');
+                return;
+            }
+
+            // 检查是否已经有翻译标记，避免重复添加
+            if (danmuElement.innerHTML.includes('translens-danmu-translation')) {
+                console.log('[翻译助手] 弹幕已有翻译标记，跳过');
+                return;
+            }
+
+            // 如果目标词汇在原内容中，高亮显示并在词汇后直接添加翻译
+            let newHTML;
+            if (originalContent.includes(targetWord)) {
+                // 创建高亮的目标词汇，包含内联翻译
+                const highlightedWordWithTranslation = `<span style="
+                    background: rgba(255, 193, 7, 0.3);
+                    color: #ff6b35;
+                    font-weight: bold;
+                    padding: 1px 2px;
+                    border-radius: 2px;
+                ">${targetWord}<span class="translens-danmu-translation" style="
+                    color: #00d4aa;
+                    font-weight: bold;
+                    margin-left: 2px;
+                    font-size: 0.85em;
+                ">【${translation}】</span></span>`;
+                
+                newHTML = originalContent.replace(new RegExp(targetWord, 'g'), highlightedWordWithTranslation);
+            } else {
+                // 如果目标词汇不在原内容中，在末尾添加翻译标记
+                const translationSpan = `<span class="translens-danmu-translation" style="
+                    color: #00d4aa;
+                    font-weight: bold;
+                    margin-left: 6px;
+                    padding: 1px 4px;
+                    background: rgba(0, 212, 170, 0.1);
+                    border-radius: 3px;
+                    font-size: 0.9em;
+                    border: 1px solid rgba(0, 212, 170, 0.3);
+                ">【${targetWord}: ${translation}】</span>`;
+                
+                newHTML = originalContent + translationSpan;
+            }
+
+            // 更新弹幕元素的HTML内容
+            danmuElement.innerHTML = newHTML;
+            
+            console.log(`[翻译助手] 弹幕翻译标记已插入: "${targetWord}" -> "${translation}"`);
+            
+        } catch (error) {
+            console.error('[翻译助手] 插入弹幕翻译标记时出错:', error);
+        }
+    }
+
+    // 停止弹幕监控
+    function stopDanmuMonitoring() {
+        if (isDanmuMonitoringActive && danmuCheckInterval) {
+            clearInterval(danmuCheckInterval);
+            isDanmuMonitoringActive = false;
+            danmuCheckInterval = null;
+            lastDanmuContent = '';
+            console.log('[翻译助手] 弹幕监控已停止');
+        }
+    }
+
+    // 监听页面URL变化
+    let currentUrl = window.location.href;
+    function checkUrlChange() {
+        if (currentUrl !== window.location.href) {
+            currentUrl = window.location.href;
+            console.log('[翻译助手] 检测到页面URL变化:', currentUrl);
+            
+            // 停止之前的弹幕监控
+            stopDanmuMonitoring();
+            
+            // 如果是B站视频页面，重新开始监控
+            if (isBilibiliVideoPage()) {
+                setTimeout(() => {
+                    initBilibiliDanmuMonitor();
+                }, 1000);
+            }
+        }
+    }
+
+    // 每秒检查一次URL变化（用于SPA页面）
+    setInterval(checkUrlChange, 1000);
+
     // 开始执行
     waitForPageLoad();
+    
+    // 初始化B站弹幕监控
+    setTimeout(() => {
+        initBilibiliDanmuMonitor();
+    }, 2000);
   
 })();
