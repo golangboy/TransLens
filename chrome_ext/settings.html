@@ -4,6 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TransLens - 智能语言学习助手</title>
+    <!-- 引入项目图标 -->
+    <link rel="icon" type="image/png" sizes="16x16" href="icon16.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="icon32.png">
+    <link rel="icon" type="image/png" sizes="48x48" href="icon48.png">
+    <link rel="icon" type="image/png" sizes="128x128" href="icon128.png">
+    <link rel="shortcut icon" href="icon32.png">
     <style>
         :root {
             --calm-blue: #1e3a5f;
@@ -66,15 +72,18 @@
         .logo-icon {
             width: 32px;
             height: 32px;
-            background: linear-gradient(135deg, var(--soft-cyan) 0%, var(--calm-blue) 100%);
             border-radius: 8px;
             display: flex;
             align-items: center;
             justify-content: center;
-            color: white;
-            font-size: 16px;
-            font-weight: 600;
             flex-shrink: 0;
+            overflow: hidden;
+        }
+        
+        .logo-icon img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
         }
         
         .header p {
@@ -292,10 +301,12 @@
     <div class="container">
         <div class="header">
             <h1>
-                <div class="logo-icon">T</div>
+                <div class="logo-icon">
+                    <img src="icon32.png" alt="TransLens Logo">
+                </div>
                 TransLens
             </h1>
-            <p>专注语言学习的智能翻译助手 - 个性化配置中心</p>
+            <p>沉浸式英语学习助手 - 配置页面</p>
         </div>
         
         <div class="current-settings">
@@ -396,12 +407,12 @@
         </div>
         
         <div class="form-group">
-            <label for="modelName">AI学习模型</label>
+            <label for="modelName">翻译模型</label>
             <input type="text" id="modelName" placeholder="例如: gpt-3.5-turbo" />
         </div>
         
         <div class="form-group">
-            <label for="systemPrompt">AI教学助手角色设定</label>
+            <label for="systemPrompt">系统提示词</label>
             <textarea id="systemPrompt" rows="3" placeholder="例如: 你是一个专业的语言学习导师，擅长根据上下文提供精准的词汇翻译和学习建议。"></textarea>
         </div>
         
@@ -424,8 +435,8 @@
         <div class="actions-section">
             <!-- Primary actions: Save is most important, Test is secondary functional action -->
             <div class="primary-actions">
-                <button class="btn btn-primary" id="saveBtn">保存学习配置</button>
-                <button class="btn btn-test" id="testBtn">测试学习助手</button>
+                <button class="btn btn-primary" id="saveBtn">保存配置</button>
+                <button class="btn btn-test" id="testBtn">测试翻译</button>
             </div>
         </div>
         

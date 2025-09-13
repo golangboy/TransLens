@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "智能翻译助手",
+  "name": "TransLens",
   "version": "1.1.0",
-  "description": "智能识别并翻译网页中的中文内容，支持自定义服务器地址",
+  "description": "沉浸式英语学习助手",
   "content_scripts": [
     {
       "matches": [
